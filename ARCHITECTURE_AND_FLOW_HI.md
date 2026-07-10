@@ -146,12 +146,4 @@ flowchart LR
 
 ---
 
-## 6. Quick Sanity Check
 
-```bash
-# Confirm karo ki Gemini hi ek LLM provider use ho raha hai
-grep -rn "ChatGoogleGenerativeAI\|GoogleGenerativeAIEmbeddings" src/ --include="*.py"
-
-# .env mein GEMINI_API_KEY set hona chahiye
-cat .env | grep GEMINI_API_KEY
-```
