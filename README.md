@@ -240,17 +240,52 @@ Form Data:
 
 ---
 
+### 3. Authentication Endpoints
+**Session-based login/signup, backed by MongoDB (bcrypt-hashed passwords + JWT)**
+
+```http
+POST /api/init
+```
+Issues a short-lived API token the frontend must send as `X-API-TOKEN` on the two calls below.
+
+```http
+POST /api/create_user
+X-API-TOKEN: <token from /api/init>
+Content-Type: application/json
+
+{
+  "username": "alice",
+  "password": "secret123"
+}
+```
+
+```http
+POST /api/login
+X-API-TOKEN: <token from /api/init>
+Content-Type: application/json
+
+{
+  "username": "alice",
+  "password": "secret123"
+}
+```
+**Response:** `{ "jwt": "<token>" }` on success.
+
+---
+
 ## 📖 Usage Guide
 
 ### 1. Prerequisites
 
 ```bash
 # System Requirements
-- Python 3.9 or higher
-- MongoDB (local or cloud)
-- Qdrant vector database
-- Google Gemini API key
-- Tavily API key (for web search)
+- Python 3.12+
+- uv (Python package/environment manager) — https://docs.astral.sh/uv/
+- A MongoDB Atlas cluster (free tier is fine) — for auth + chat history
+- A Qdrant Cloud cluster (free tier is fine) — for the vector store
+- A Google Gemini API key (chat LLM + embeddings)
+  - Optionally a Groq API key, if you switch src/llms/gemini.py to use Groq instead
+- A Tavily API key (for web search fallback)
 ```
 
 ### 2. Installation
@@ -260,12 +295,9 @@ Form Data:
 git clone https://github.com/<your-username>/IntelliQuery.git
 cd IntelliQuery
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
+# Create the virtual environment and install dependencies
+uv venv
+uv pip install -r requirements.txt
 ```
 
 ### 3. Environment Configuration
@@ -273,35 +305,40 @@ pip install -r requirements.txt
 Create a `.env` file in the project root:
 
 ```env
-# Gemini Configuration
+# Gemini (chat LLM + embeddings)
 GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_CHAT_MODEL=gemini-3.6-flash
 
-# Tavily Search Configuration
+# Tavily web search
 TAVILY_API_KEY=your_tavily_api_key_here
 
-# Qdrant Configuration
-QDRANT_URL=http://localhost:6333
+# Qdrant Cloud (vector store for uploaded documents)
+QDRANT_URL=https://your-cluster-url.aws.cloud.qdrant.io
 QDRANT_API_KEY=your_qdrant_api_key
-QDRANT_CODE_COLLECTION=code_documents
 QDRANT_DOCS_COLLECTION=documents
 
-# MongoDB Configuration
-MONGODB_URL=mongodb://localhost:27017
+# MongoDB Atlas (auth + chat history)
+MONGODB_URL=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority
 MONGODB_DB_NAME=intelliquery
+
+# JWT signing secret for login sessions (use a long random string)
+JWT_SECRET=change_me_to_a_long_random_string
+
+# Optional: only needed if you switch src/llms/gemini.py to use Groq
+# GROQ_API_KEY=your_groq_api_key_here
+# GROQ_CHAT_MODEL=openai/gpt-oss-20b
 ```
 
 ### 4. Running the Application
 
-**Start FastAPI Backend:**
+**Start FastAPI Backend (Terminal 1):**
 ```bash
-# Terminal 1: Run FastAPI server
-python -m uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn src.main:app --reload
 ```
 
-**Start Streamlit Frontend:**
+**Start Streamlit Frontend (Terminal 2):**
 ```bash
-# Terminal 2: Run Streamlit app
-streamlit run streamlit_app/home.py
+uv run streamlit run streamlit_app/home.py
 ```
 
 **Access the Application:**
