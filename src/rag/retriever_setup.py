@@ -1,27 +1,52 @@
 """
 Retriever setup and vector store configuration.
+
+Uses Qdrant (cloud-hosted, persistent) as the vector store instead of the
+previous in-memory FAISS setup, so uploaded documents survive backend
+restarts.
 """
 
 import os
 
-from langchain_core.documents import Document
 from langchain_core.tools import create_retriever_tool
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-# from langchain_qdrant import QdrantVectorStore
-from langchain_community.vectorstores import FAISS
+from langchain_qdrant import QdrantVectorStore
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import Distance, VectorParams
 
 from src.core.config import settings
 
 embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
 
-# Global variable to store the FAISS vectorstore instance
-# This ensures get_retriever() can access documents stored by retriever_chain()
-_faiss_vectorstore = None
+qdrant_client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
 
 
-def retriever_chain(chunks: list[Document]):
+def _ensure_collection() -> None:
+    """Create the Qdrant collection if it doesn't already exist."""
+    existing = [c.name for c in qdrant_client.get_collections().collections]
+    if settings.DOCS_COLLECTION not in existing:
+        # Probe the embedding model's actual output size rather than
+        # hardcoding it, so this keeps working if the model changes.
+        dim = len(embeddings.embed_query("dimension probe"))
+        qdrant_client.create_collection(
+            collection_name=settings.DOCS_COLLECTION,
+            vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
+        )
+        print(f"Created Qdrant collection '{settings.DOCS_COLLECTION}' (dim={dim})")
+
+
+def _get_vectorstore() -> QdrantVectorStore:
+    _ensure_collection()
+    return QdrantVectorStore(
+        client=qdrant_client,
+        collection_name=settings.DOCS_COLLECTION,
+        embedding=embeddings,
+    )
+
+
+def retriever_chain(chunks: list) -> bool:
     """
-    Initialize and store documents in FAISS vector database.
+    Add document chunks to the Qdrant collection.
 
     Args:
         chunks: List of document chunks to store.
@@ -29,39 +54,23 @@ def retriever_chain(chunks: list[Document]):
     Returns:
         Boolean indicating success of the operation.
     """
-    global _faiss_vectorstore
-
     try:
-        # Commenting out Qdrant code for temporary FAISS usage
-        # vectorstore = QdrantVectorStore.from_documents(
-        #     documents=chunks,
-        #     embedding=embeddings,
-        #     url=settings.QDRANT_URL,
-        #     api_key=settings.QDRANT_API_KEY,
-        #     collection_name=settings.CODE_COLLECTION,
-        # )
-        vectorstore = FAISS.from_documents(
-            documents=chunks,
-            embedding=embeddings
-        )
-
-        # Store the vectorstore globally so get_retriever() can access it
-        _faiss_vectorstore = vectorstore
-
-        print("FAISS vector store initialized with documents")
-        print(f"Vectorstore contains {len(chunks)} document chunks")
+        vectorstore = _get_vectorstore()
+        vectorstore.add_documents(chunks)
+        print(f"Added {len(chunks)} chunks to Qdrant collection '{settings.DOCS_COLLECTION}'")
         return True
     except Exception as e:
-        print(f"Error storing documents in FAISS: {e}")
+        print(f"Error storing documents in Qdrant: {e}")
         return False
 
 
 def get_retriever():
     """
-    Get a retriever tool connected to the FAISS vector store.
+    Get a retriever tool connected to the Qdrant vector store.
 
-    Returns the retriever tool that can search documents stored by retriever_chain().
-    If no documents have been uploaded yet, creates a retriever with a dummy document.
+    Always queries the live Qdrant collection, so it reflects whatever was
+    most recently uploaded (including from a previous run, since Qdrant
+    persists data).
 
     Returns:
         A LangChain retriever tool configured for the vector store.
@@ -69,40 +78,10 @@ def get_retriever():
     Raises:
         Exception: If vector store initialization fails.
     """
-    global _faiss_vectorstore
-
     try:
-        # Commenting out Qdrant code for temporary FAISS usage
-        # vectorstore = QdrantVectorStore.from_documents(
-        #     documents=[],
-        #     embedding=embeddings,
-        #     url=settings.QDRANT_URL,
-        #     api_key=settings.QDRANT_API_KEY,
-        #     collection_name=settings.CODE_COLLECTION,
-        # )
-        # retriever = vectorstore.as_retriever()
+        vectorstore = _get_vectorstore()
+        retriever = vectorstore.as_retriever()
 
-        # Use the global vectorstore if it exists (documents have been uploaded)
-        if _faiss_vectorstore is not None:
-            retriever = _faiss_vectorstore.as_retriever()
-            print("Using existing FAISS vectorstore with uploaded documents")
-        else:
-            # No documents uploaded yet, create dummy for initialization
-            print("No documents uploaded yet, creating dummy vectorstore")
-            from langchain_core.documents import Document as LangChainDocument
-
-            dummy_doc = LangChainDocument(
-                page_content="No documents have been uploaded yet. Please upload a document first.",
-                metadata={"source": "initialization"}
-            )
-
-            _faiss_vectorstore = FAISS.from_documents(
-                documents=[dummy_doc],
-                embedding=embeddings
-            )
-            retriever = _faiss_vectorstore.as_retriever()
-
-        # Load document description
         if os.path.exists("description.txt"):
             with open("description.txt", "r", encoding="utf-8") as f:
                 description = f.read()

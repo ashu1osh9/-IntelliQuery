@@ -21,7 +21,7 @@ search se), instead of hamesha ek hi fixed retrieval path use karne ke. Poora or
 
 ---
 
-## 2. LLM aur Embedding Stack
+## 2. LLM aur Embedding Stackhttps://builder.aws.com/community/@ashu1osh
 
 | Component | Technology | Kaam |
 |---|---|---|

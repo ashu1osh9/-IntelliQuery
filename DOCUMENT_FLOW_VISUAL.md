@@ -16,7 +16,7 @@
         └────────┬───────────────┘
                  │
                  ▼
-    ┌────────────────────────────────────┐
+    ┌────────────────────────────────────┐V
     │  Create DUMMY Document             │
     │  - Content: "Placeholder..."       │
     │  - Purpose: Init FAISS vectorstore │

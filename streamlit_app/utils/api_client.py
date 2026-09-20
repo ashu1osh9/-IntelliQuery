@@ -7,10 +7,14 @@ import os
 
 import requests
 
+
+
 logger = logging.getLogger(__name__)
 
 # Backend service URLs
-RUST_BASE_URL = "http://localhost:8080/api"
+# Auth used to be a separate Rust service on :8080; it's now handled by the
+# same Python (FastAPI) backend, under the /api prefix.
+RUST_BASE_URL = "http://127.0.0.1:8000/api"
 PYTHON_BASE_URL = "http://127.0.0.1:8000"
 
 

@@ -1,1 +1,4 @@
-This tool is designed solely for answering questions related to the content of your uploaded resume. Please use it to inquire specifically about the details and information contained within your document.
+**Tool Instruction**
+
+Use this tool to answer questions **only about the uploaded document titled “Document about the water cycle.”**  
+The tool can retrieve and provide information solely from the content of that document; it should not generate or infer information beyond what is present in the uploaded file.
